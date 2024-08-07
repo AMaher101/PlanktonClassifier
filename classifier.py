@@ -140,6 +140,7 @@ class Classifier:
         cysts_of = lis[lis["Species"].str.contains("cysts of", regex=False)]["Species"].str.slice(CYSTS_LEN)
         filtered = cysts_of.isin(self.mdb['Species Name'])
         lis.loc[filtered[filtered].index, "Status"] = "Confirmed"
+        lis.loc[filtered[filtered].index, "Genus"] = cysts_of.str.split().str[0]
 
         # add back stored blocks of known mixotrophs and mark as Confirmed
         for known_block in known_blocks:
@@ -165,6 +166,10 @@ class Classifier:
 
         # drop all rows with Status = "None"
         lis = lis.dropna(subset=['Status']).reset_index(drop=True)
+
+        # merge additional columns from mdb
+        lis = pd.merge(lis, self.mdb[['Species Name','MFT', 'Evidence of mixoplankton activity', 'size class']], left_on='Species', right_on='Species Name', how='left').drop(columns=['Species Name']).reset_index(drop=True) 
+        lis = lis[lis.columns[:4].to_list() + lis.columns[-3:].to_list() + lis.columns[4:-3].to_list()]
 
         return lis
 
