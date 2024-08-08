@@ -118,6 +118,7 @@ class Classifier:
 
         # Add totals for each row
         lis['Totals'] = lis.loc[:, ~lis.columns.isin(['Status', 'Phylum', 'Genus', 'Species'])].sum(axis=1)
+        lis = pd.concat([lis.iloc[:, :3], lis.iloc[:, -1:], lis.iloc[:, 3:-1]], axis=1)
 
         return lis
 
