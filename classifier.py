@@ -169,7 +169,8 @@ class Classifier:
 
         # merge additional columns from mdb
         lis = pd.merge(lis, self.mdb[['Species Name','MFT', 'Evidence of mixoplankton activity', 'size class']], left_on='Species', right_on='Species Name', how='left').drop(columns=['Species Name']).reset_index(drop=True) 
-        lis = lis[lis.columns[:4].to_list() + lis.columns[-3:].to_list() + lis.columns[4:-3].to_list()]
+        lis = pd.concat([lis.iloc[:, :4], lis.iloc[:, -3:], lis.iloc[:, 4:-3]], axis=1)
+        lis[['MFT', 'Evidence of mixoplankton activity', 'size class']] = lis[['MFT', 'Evidence of mixoplankton activity', 'size class']].fillna("")
 
         return lis
 
@@ -182,6 +183,9 @@ class Classifier:
         totals.insert(0, 'Status', "") 
         totals["Genus"] = ""
         totals["Species"] = ""
+        totals["MFT"] = ""
+        totals["Evidence of mixoplankton activity"] = ""
+        totals["size class"] = ""
 
         # rename to TOTAL "   "
         totals["Phylum"] = totals["Phylum"].str.upper().apply(lambda x: "TOTAL " + x + "S")
@@ -190,9 +194,9 @@ class Classifier:
 
     # add back multiheader
     def add_multiheader(self, df):
+        df = df.copy()
         needed_cols = pd.Series(np.full(len(df.columns) - len(self.orig_header), None))  # create series of "None"'s to be concatted
         original_headers = pd.concat([needed_cols, self.orig_header.to_series()], ignore_index=True)  # concat "None"'s so lines up correctly
-    
         df.columns = pd.MultiIndex.from_arrays([original_headers, df.columns])
         return df
 
