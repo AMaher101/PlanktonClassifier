@@ -35,21 +35,24 @@ class Classifier:
     csv_name : String
         name of the csv to classify
         * csv should have skipped line between different phylums (ex. empty row above Diatom, Dinoflagellate, etc.)
-    confirmed_before : Array of String
+    confirmed_genus_before : Array of String
+        names of confirmed mixoplankton genuses
+    confirmed_species_before : Array of String
         names of confirmed mixoplankton genuses
 
     Attributes
     ----------
     lis_cleaned : DataFrame
         cleaned version of lis data
+    all_classified : DataFrame
+        all classified plankton as mixoplankton (yes, unsure, or no) based on hard coded rules
     mixoplankton : DataFrame
-        classified plankton as confirmed or unsure mixoplankton based on hard coded rules
+        only the mixoplankton (yes or unsure)
     totals : DataFrame
         totals of each genus
     pretty : DataFrame
         classified mixoplankton w/ totals after each genus and original header
-
-
+        
     ----------
     HARD CODED RULES FOR CLASSIFICATION
     Assumed all {Ochromonas, } are mixotrophs.
@@ -61,14 +64,16 @@ class Classifier:
     5. check "cysts of"
 
     Status Key--  
-    Confirmed := explicitly in the Mixotroph Database  
+    Yes := explicitly in the Mixotroph Database  
     Unsure (sp. in mdb) := genus in Mixotroph Database lists "[genus name] sp." (ex. Ochromonas sp. for Ochromonas danica)  
     Unsure (inexact name):= LIS name is in a longer Mixotroph Database name or vice versa (ex. Chattonella marina in Chattonella marina var. ovata)   
+    No := not a mixotroph
     """
     
-    def __init__(self, csv_name, confirmed_before=["Ochromonas"]):
+    def __init__(self, csv_name, confirmed_genus_before=["Ochromonas"], confirmed_species_before=['Chattonella marina']):
         self.csv_name = csv_name
-        self.confirmed_before = confirmed_before
+        self.confirmed_genus_before = confirmed_genus_before
+        self.confirmed_species_before = confirmed_species_before
 
         # import and clean mixoplankton database
         mdb = pd.read_csv(MDB_PATH)
@@ -82,9 +87,10 @@ class Classifier:
         self.orig_header = lis.columns  # save original column headers
 
         self.lis_cleaned = self.clean_lis(lis)
-        self.mixoplankton = self.classify_lis(self.lis_cleaned)
-        self.total_classified_plankton = self.classify_lis_without_dropping(self.lis_cleaned)
-        self.totals = self.calc_totals(self.mixoplankton)
+        self.all_classified = self.classify_lis(self.lis_cleaned)
+        self.mixoplankton = self.only_mixotrophs(self.all_classified)
+        self.totals = self.calc_totals(self.all_classified)
+
         self.pretty = self.make_pretty()
         
 
@@ -123,6 +129,67 @@ class Classifier:
         return lis
 
 
+    # def classify_lis(self, lis):
+    #     # add Status column
+    #     lis = lis.copy()
+    #     lis.insert(0, 'Status', None)
+
+    #     # store blocks of known mixotroph genuses and species (given beforehand) 
+    #     known_blocks = []
+    #     for genus in self.confirmed_genus_before:
+    #         ind = lis[lis["Species"].str.contains(genus)].index
+    #         df = lis.iloc[ind]
+    #         known_blocks.append(Block(ind, df))
+    #     for species in self.confirmed_species_before:
+    #         ind = lis[lis["Species"].str.contains(species)].index
+    #         df = lis.iloc[ind]
+    #         known_blocks.append(Block(ind, df))
+
+    #     # remove based on hard coded rules (NOT RESETTING INDEX IN ORDER TO ADD CONFIRMED_BEFORE GENUSES BACK CORRECTLY)
+    #     lis = lis[lis["Phylum"] != "Diatom"] # remove all diatoms
+    #     lis = lis[~lis["Species"].str.contains("-like")] # remove species ending with "-like"
+    #     lis = lis[~lis["Species"].str.contains("sp.|spp.")]  # remove all sp. / spp.
+
+    #     # check "cysts of"
+    #     CYSTS_LEN = len("cysts of ")
+    #     cysts_of = lis[lis["Species"].str.contains("cysts of", regex=False)]["Species"].str.slice(CYSTS_LEN)
+    #     filtered = cysts_of.isin(self.mdb['Species Name'])
+    #     lis.loc[filtered[filtered].index, "Status"] = "Mixotroph"
+    #     lis.loc[filtered[filtered].index, "Genus"] = cysts_of.str.split().str[0]
+
+    #     # add back stored blocks of known mixotrophs and mark as Mixotroph
+    #     for known_block in known_blocks:
+    #         lis = pd.concat([lis, known_block.df]).sort_index().drop_duplicates()
+    #         lis.loc[known_block.ind, "Status"] = "Mixotroph"
+
+    #     # check if (in none status) direct match and mark all Trues as "Mixotroph"
+    #     filtered = lis[lis['Status'].isnull()]["Species"].isin(self.mdb['Species Name'])
+    #     lis.loc[filtered[filtered].index, "Status"] = "Mixotroph"
+        
+    #     # check (in remaining none status) if the genus has sp. and mark all Trues as "Unsure (sp. in mdb)"
+    #     genus_to_check = lis[lis['Status'].isnull()]['Species'].str.split().str[0].drop_duplicates() + " sp."
+    #     filtered = genus_to_check.isin(self.mdb['Species Name'])
+    #     lis.loc[filtered[filtered].index, "Status"] = "Unsure (sp. mdb)"
+
+    #     # check (in remaining none status) if the name is contained in the mdb and vice versa and mark all Trues as "Unsure (inexact name)"
+    #     filtered = lis[lis['Status'].isnull()]["Species"].apply(lambda x: self.mdb["Species Name"].str.contains(x, regex=False).any())
+    #     lis.loc[filtered[filtered].index, "Status"] = "Unsure (inexact name)"
+        
+    #     pattern = '|'.join(self.mdb['Species Name'])
+    #     filtered = lis[lis['Status'].isnull()]["Species"].str.contains(pattern, regex=True)
+    #     lis.loc[filtered[filtered].index, "Status"] = "Unsure (inexact name)"
+
+    #     # drop all rows with Status = "None"
+    #     lis = lis.dropna(subset=['Status']).reset_index(drop=True)
+
+    #     # merge additional columns from mdb
+    #     lis = pd.merge(lis, self.mdb[['Species Name','MFT', 'Evidence of mixoplankton activity', 'size class']], left_on='Species', right_on='Species Name', how='left').drop(columns=['Species Name']).reset_index(drop=True) 
+    #     lis = pd.concat([lis.iloc[:, :4], lis.iloc[:, -3:], lis.iloc[:, 4:-3]], axis=1)
+    #     lis[['MFT', 'Evidence of mixoplankton activity', 'size class']] = lis[['MFT', 'Evidence of mixoplankton activity', 'size class']].fillna("")
+
+    #     return lis
+
+
     def classify_lis(self, lis):
         # add Status column
         lis = lis.copy()
@@ -130,65 +197,12 @@ class Classifier:
 
         # store blocks of known mixotroph genuses (given beforehand) 
         known_blocks = []
-        for genus in self.confirmed_before:
+        for genus in self.confirmed_genus_before:
             ind = lis[lis["Species"].str.contains(genus)].index
             df = lis.iloc[ind]
             known_blocks.append(Block(ind, df))
-
-        # remove based on hard coded rules (NOT RESETTING INDEX IN ORDER TO ADD CONFIRMED_BEFORE GENUSES BACK CORRECTLY)
-        lis = lis[lis["Phylum"] != "Diatom"] # remove all diatoms
-        lis = lis[~lis["Species"].str.contains("-like")] # remove species ending with "-like"
-        lis = lis[~lis["Species"].str.contains("sp.|spp.")]  # remove all sp. / spp.
-
-        # check "cysts of"
-        CYSTS_LEN = len("cysts of ")
-        cysts_of = lis[lis["Species"].str.contains("cysts of", regex=False)]["Species"].str.slice(CYSTS_LEN)
-        filtered = cysts_of.isin(self.mdb['Species Name'])
-        lis.loc[filtered[filtered].index, "Status"] = "Confirmed"
-        lis.loc[filtered[filtered].index, "Genus"] = cysts_of.str.split().str[0]
-
-        # add back stored blocks of known mixotrophs and mark as Confirmed
-        for known_block in known_blocks:
-            lis = pd.concat([lis, known_block.df]).sort_index().drop_duplicates()
-            lis.loc[known_block.ind, "Status"] = "Confirmed"
-
-        # check if (in none status) direct match and mark all Trues as "Confirmed"
-        filtered = lis[lis['Status'].isnull()]["Species"].isin(self.mdb['Species Name'])
-        lis.loc[filtered[filtered].index, "Status"] = "Confirmed"
-        
-        # check (in remaining none status) if the genus has sp. and mark all Trues as "Unsure (sp. in mdb)"
-        genus_to_check = lis[lis['Status'].isnull()]['Species'].str.split().str[0].drop_duplicates() + " sp."
-        filtered = genus_to_check.isin(self.mdb['Species Name'])
-        lis.loc[filtered[filtered].index, "Status"] = "Unsure (sp. mdb)"
-
-        # check (in remaining none status) if the name is contained in the mdb and vice versa and mark all Trues as "Unsure (inexact name)"
-        filtered = lis[lis['Status'].isnull()]["Species"].apply(lambda x: self.mdb["Species Name"].str.contains(x, regex=False).any())
-        lis.loc[filtered[filtered].index, "Status"] = "Unsure (inexact name)"
-        
-        pattern = '|'.join(self.mdb['Species Name'])
-        filtered = lis[lis['Status'].isnull()]["Species"].str.contains(pattern, regex=True)
-        lis.loc[filtered[filtered].index, "Status"] = "Unsure (inexact name)"
-
-        # drop all rows with Status = "None"
-        lis = lis.dropna(subset=['Status']).reset_index(drop=True)
-
-        # merge additional columns from mdb
-        lis = pd.merge(lis, self.mdb[['Species Name','MFT', 'Evidence of mixoplankton activity', 'size class']], left_on='Species', right_on='Species Name', how='left').drop(columns=['Species Name']).reset_index(drop=True) 
-        lis = pd.concat([lis.iloc[:, :4], lis.iloc[:, -3:], lis.iloc[:, 4:-3]], axis=1)
-        lis[['MFT', 'Evidence of mixoplankton activity', 'size class']] = lis[['MFT', 'Evidence of mixoplankton activity', 'size class']].fillna("")
-
-        return lis
-
-
-    def classify_lis_without_dropping(self, lis):
-        # add Status column
-        lis = lis.copy()
-        lis.insert(0, 'Status', None)
-
-        # store blocks of known mixotroph genuses (given beforehand) 
-        known_blocks = []
-        for genus in self.confirmed_before:
-            ind = lis[lis["Species"].str.contains(genus)].index
+        for species in self.confirmed_species_before:
+            ind = lis[lis["Species"].str.contains(species)].index
             df = lis.iloc[ind]
             known_blocks.append(Block(ind, df))
 
@@ -201,18 +215,18 @@ class Classifier:
         CYSTS_LEN = len("cysts of ")
         cysts_of = lis[lis["Species"].str.contains("cysts of", regex=False)]["Species"].str.slice(CYSTS_LEN)
         filtered = cysts_of.isin(self.mdb['Species Name'])
-        lis.loc[filtered[filtered].index, "Status"] = "Confirmed"
+        lis.loc[filtered[filtered].index, "Status"] = "Yes"
         lis.loc[filtered[filtered].index, "Genus"] = cysts_of.str.split().str[0]
         lis = lis[~lis["Genus"].str.contains("other|cysts")] # remove all others and remaining cysts
 
-        # add back stored blocks of known mixotrophs and mark as Confirmed
+        # add back stored blocks of known mixotrophs and mark as Yes
         for known_block in known_blocks:
             lis = pd.concat([lis, known_block.df]).sort_index().drop_duplicates()
-            lis.loc[known_block.ind, "Status"] = "Confirmed"
+            lis.loc[known_block.ind, "Status"] = "Yes"
 
-        # check if (in none status) direct match and mark all Trues as "Confirmed"
+        # check if (in none status) direct match and mark all Trues as "Yes"
         filtered = lis[lis['Status'].isnull()]["Species"].isin(self.mdb['Species Name'])
-        lis.loc[filtered[filtered].index, "Status"] = "Confirmed"
+        lis.loc[filtered[filtered].index, "Status"] = "Yes"
         
         # check (in remaining none status) if the genus has sp. and mark all Trues as "Unsure (sp. in mdb)"
         genus_to_check = lis[lis['Status'].isnull()]['Species'].str.split().str[0].drop_duplicates() + " sp."
@@ -226,6 +240,21 @@ class Classifier:
         pattern = '|'.join(self.mdb['Species Name'])
         filtered = lis[lis['Status'].isnull()]["Species"].str.contains(pattern, regex=True)
         lis.loc[filtered[filtered].index, "Status"] = "Unsure (inexact name)"
+        
+        # replace None's in Status with No's 
+        lis["Status"] = lis["Status"].replace(np.nan, 'No')
+
+        return lis.reset_index(drop=True)
+    
+
+    def only_mixotrophs(self, lis):
+        # drop all rows with Status = "None"
+        lis = lis[lis["Status"] != "No"].reset_index(drop=True)
+
+        # merge additional columns from mdb
+        lis = pd.merge(lis, self.mdb[['Species Name','MFT', 'Evidence of mixoplankton activity', 'size class']], left_on='Species', right_on='Species Name', how='left').drop(columns=['Species Name']).reset_index(drop=True) 
+        lis = pd.concat([lis.iloc[:, :4], lis.iloc[:, -3:], lis.iloc[:, 4:-3]], axis=1)
+        lis[['MFT', 'Evidence of mixoplankton activity', 'size class']] = lis[['MFT', 'Evidence of mixoplankton activity', 'size class']].fillna("")
 
         return lis
     
@@ -259,11 +288,13 @@ class Classifier:
     # adds in totals w/ line skips and adds back multiheader
     def make_pretty(self):
         # add in line skips
-        totals = self.totals.set_index(self.mixoplankton.groupby(['Phylum']).tail(1).index + 0.1)
+        totals = self.calc_totals(self.mixoplankton).set_index(self.mixoplankton.groupby(['Phylum']).tail(1).index + 0.1)
         empty_df = pd.DataFrame("", index=self.mixoplankton.groupby(['Phylum']).tail(1).index+0.2, columns=totals.columns)
         totals = pd.concat([totals, empty_df]).sort_index()
 
         with_totals = pd.concat([self.mixoplankton, totals]).sort_index().reset_index(drop=True)  # add totals w/ line skips
+        with_totals = with_totals.drop(columns=["Status"])
+        
         with_headers = self.add_multiheader(with_totals)
 
         return with_headers
