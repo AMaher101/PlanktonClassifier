@@ -1,6 +1,9 @@
 
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.basemap import Basemap
+import re
 
 pd.set_option("future.no_silent_downcasting", True)
 
@@ -72,6 +75,7 @@ class Classifier:
     
     def __init__(self, csv_name, confirmed_genus_before=["Ochromonas"], confirmed_species_before=['Chattonella marina']):
         self.csv_name = csv_name
+        self.year = re.search(r'\b(\d{4})\b', self.csv_name).group(1) if re.search(r'\b(\d{4})\b', self.csv_name) else ""
         self.confirmed_genus_before = confirmed_genus_before
         self.confirmed_species_before = confirmed_species_before
 
@@ -89,6 +93,8 @@ class Classifier:
         self.lis_cleaned = self.clean_lis(lis)
         self.all_classified = self.classify_lis(self.lis_cleaned)
         self.mixoplankton = self.only_mixotrophs(self.all_classified)
+        self.pretty_without_totals = self.add_multiheader(self.mixoplankton)
+
         self.totals = self.calc_totals(self.all_classified)
 
         self.pretty = self.make_pretty()
@@ -122,7 +128,6 @@ class Classifier:
         SPECIES_COL = lis.columns.get_loc("Species")
         lis.iloc[:, SPECIES_COL+1:] = lis.iloc[:, SPECIES_COL+1:].replace(",| ", "", regex=True).replace("", 0).astype(float).astype(int)
         
-
         # add totals for each row
         lis['Totals'] = lis.loc[:, ~lis.columns.isin(['Status', 'Phylum', 'Genus', 'Species'])].sum(axis=1)
         lis = pd.concat([lis.iloc[:, :3], lis.iloc[:, -1:], lis.iloc[:, 3:-1]], axis=1)
@@ -196,7 +201,6 @@ class Classifier:
         lis = lis.drop(columns=["Status"])
 
         return lis
-    
 
     def calc_totals(self, lis):
         totals = lis.groupby('Phylum', as_index=False, sort=False).sum()
@@ -214,13 +218,45 @@ class Classifier:
         return totals
 
 
-    # add back multiheader
-    def add_multiheader(self, df):
-        df = df.copy()
-        needed_cols = pd.Series(np.full(len(df.columns) - len(self.orig_header), None))  # create series of "None"'s to be concatted
+    # add back multiheader with sorted dates and stations
+    def add_multiheader(self, lis):
+        lis = lis.copy()
+        needed_cols = pd.Series(np.full(len(lis.columns) - len(self.orig_header), None))  # create series of "None"'s to be concatted
         original_headers = pd.concat([needed_cols, self.orig_header.to_series()], ignore_index=True)  # concat "None"'s so lines up correctly
-        df.columns = pd.MultiIndex.from_arrays([original_headers, df.columns])
-        return df
+        lis.columns = pd.MultiIndex.from_arrays([original_headers, lis.columns])
+
+        # Isolate Station/Date columns
+        species_columns = lis.columns.get_level_values(1).isin(['Status', 'Phylum', 'Genus', 'Species', 'MFT', 'Evidence of mixoplankton activity', 'size class', 'Totals'])
+        removed_columns = lis.loc[:, species_columns].copy()
+
+        lis = lis.loc[:, ~species_columns]
+        lis.columns = pd.MultiIndex.from_tuples(lis.columns, names=['Station', 'Date'])
+
+        # Extract the 'Date' level and convert to Series
+        date_level = lis.columns.get_level_values('Date').to_series()
+
+        # Extract month numbers and day numbers from date strings
+        date_parts = date_level.str.extract(r'(\d{1,2})/(\d{1,2})/(\d{2})', expand=False)
+        month_numbers = pd.to_numeric(date_parts[0], errors='coerce')
+        day_numbers = pd.to_numeric(date_parts[1], errors='coerce')
+
+        # Map for month names
+        month_dict = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June', 7: 'July', 8: 'August', 9: 'September', 10: 'October', 11: 'November', 12: 'December'}
+
+        # Adjust month if day >= 26
+        month_numbers = month_numbers + (day_numbers >= 26).astype(int)
+        month_names = month_numbers.map(month_dict).fillna(date_level.str.extract(r'(\b\w+\b)')[0]).fillna('Unknown')
+
+        # Normalize station names and create new MultiIndex
+        station_level = lis.columns.get_level_values('Station').str.split(' ').str[0]
+        lis.columns = pd.MultiIndex.from_arrays([month_names, station_level, date_level], names=['Month', 'Station', 'Date'])
+
+        # Add back initially removed columns
+        needed_cols = pd.Series(np.full(len(removed_columns.columns), None))
+        removed_columns.columns = pd.MultiIndex.from_arrays([needed_cols, removed_columns.columns.get_level_values(0), removed_columns.columns.get_level_values(1)])
+        lis = pd.concat([removed_columns, lis], axis=1)
+
+        return lis
 
 
     # adds in totals w/ line skips and adds back multiheader
