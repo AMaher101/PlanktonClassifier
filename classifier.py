@@ -51,10 +51,12 @@ class Classifier:
         all classified plankton as mixoplankton (yes, unsure, or no) based on hard coded rules
     mixoplankton : DataFrame
         only the mixoplankton (yes or unsure)
+    mixoplankton_with_header : DataFrame
+        mixoplankton with header
     totals : DataFrame
         totals of each genus
     pretty : DataFrame
-        classified mixoplankton w/ totals after each genus and original header
+        classified mixoplankton w/ totals after each genus and header
         
     ----------
     HARD CODED RULES FOR CLASSIFICATION
@@ -93,7 +95,7 @@ class Classifier:
         self.lis_cleaned = self.clean_lis(lis)
         self.all_classified = self.classify_lis(self.lis_cleaned)
         self.mixoplankton = self.only_mixotrophs(self.all_classified)
-        self.pretty_without_totals = self.add_multiheader(self.mixoplankton)
+        self.mixoplankton_with_header = self.add_multiheader(self.mixoplankton)
 
         self.totals = self.calc_totals(self.all_classified)
 
