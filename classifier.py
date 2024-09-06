@@ -88,6 +88,17 @@ class Classifier:
         mdb['Species Name'] = mdb['Species Name'].str.replace(r'sp$', 'sp.', regex=True) # edit so that species ending in "sp" now end in "sp."
         self.mdb = mdb
 
+        # calculate average volumes for each plankton size class
+        mdb_volume = mdb.loc[:, ['size class', 'L (μm)', 'W (μm) or diameter (μm)']]
+        mdb_volume[['L (μm)', 'W (μm) or diameter (μm)']] = mdb_volume[['L (μm)', 'W (μm) or diameter (μm)']].replace(r'[~]?(\d+)-(\d+)', lambda x: str((float(x.group(1)) + float(x.group(2))) / 2), regex=True)
+        mdb_volume[['L (μm)', 'W (μm) or diameter (μm)']] = mdb_volume[['L (μm)', 'W (μm) or diameter (μm)']].replace(r'[~≤]', '', regex=True)
+        mdb_volume[['L (μm)', 'W (μm) or diameter (μm)']] = mdb_volume[['L (μm)', 'W (μm) or diameter (μm)']].apply(pd.to_numeric, errors='coerce')
+        mdb_volume = mdb_volume.dropna(subset=['L (μm)', 'W (μm) or diameter (μm)'])
+        mdb_volume['Volume'] = np.where(mdb_volume['L (μm)'] == mdb_volume['W (μm) or diameter (μm)'], (4/3) * np.pi * (mdb_volume['W (μm) or diameter (μm)'] / 2) ** 3, np.nan)
+        mdb_volume['Volume'] = np.where((mdb_volume['L (μm)'].notna()) & (mdb_volume['W (μm) or diameter (μm)'].notna()) & (mdb_volume['L (μm)'] != mdb_volume['W (μm) or diameter (μm)']), (4/3) * np.pi * ((mdb_volume['W (μm) or diameter (μm)'] / 2) ** 2) * (mdb_volume['L (μm)'] / 2), mdb_volume['Volume'])
+        mdb_volume = mdb_volume.drop(['L (μm)', 'W (μm) or diameter (μm)'], axis=1).groupby('size class', as_index=False).mean()
+        self.mdb_volume = mdb_volume
+
         # import and clean LIS data and save original header
         lis = pd.read_csv(INPUTS_PATH + csv_name)
         self.orig_header = lis.columns  # save original column headers
@@ -190,17 +201,30 @@ class Classifier:
         # drop all rows with Status = "No"
         lis = lis[lis["Status"] != "No"].reset_index(drop=True)
 
-        # merge additional columns from mdb
-        lis = pd.merge(lis, self.mdb[['Species Name','MFT', 'Evidence of mixoplankton activity', 'size class']], left_on='Species', right_on='Species Name', how='left').drop(columns=['Species Name']).reset_index(drop=True) 
-        lis = pd.concat([lis.iloc[:, :4], lis.iloc[:, -3:], lis.iloc[:, 4:-3]], axis=1)
-        lis[['MFT', 'Evidence of mixoplankton activity', 'size class']] = lis[['MFT', 'Evidence of mixoplankton activity', 'size class']].fillna("")
-        
+       # merge additional columns from mdb
+        lis = pd.merge(lis, self.mdb[['Species Name', 'MFT', 'Evidence of mixoplankton activity', 'size class', 'L (μm)', 'W (μm) or diameter (μm)']], left_on='Species', right_on='Species Name', how='left').drop(columns=['Species Name']).reset_index(drop=True) 
+        lis = pd.concat([lis.iloc[:, :4], lis.iloc[:, -5:], lis.iloc[:, 4:-5]], axis=1)
+        lis[['MFT', 'Evidence of mixoplankton activity', 'size class', 'L (μm)', 'W (μm) or diameter (μm)']] = lis[['MFT', 'Evidence of mixoplankton activity', 'size class', 'L (μm)', 'W (μm) or diameter (μm)']].fillna("")
+
+        # clean length/width columns and calculate volumes
+        lis[['L (μm)', 'W (μm) or diameter (μm)']] = lis[['L (μm)', 'W (μm) or diameter (μm)']].replace(r'[^\d\-]', '', regex=True).apply(lambda col: col.str.split('-').apply(lambda x: (float(x[0]) + float(x[1])) / 2 if len(x) == 2 else float(x[0]) if x[0] else None))
+        lis['Volume'] = np.where(lis['L (μm)'] == lis['W (μm) or diameter (μm)'], (4/3) * np.pi * (lis['W (μm) or diameter (μm)'] / 2) ** 3, np.nan)
+        lis['Volume'] = np.where((lis['L (μm)'].notna()) & (lis['W (μm) or diameter (μm)'].notna()) & (lis['L (μm)'] != lis['W (μm) or diameter (μm)']), (4/3) * np.pi * ((lis['W (μm) or diameter (μm)'] / 2) ** 2) * (lis['L (μm)'] / 2), lis['Volume'])
+
         # manually add values for additional columns from mdb for confirmed_befores
         lis.loc[(lis['Genus'] == 'Ochromonas'), ['MFT', 'Evidence of mixoplankton activity', 'size class']] = ['CM', 'uptake of eubacteria', 'nano']
         lis.loc[(lis['Species'] == 'Chattonella marina'), ['MFT', 'Evidence of mixoplankton activity', 'size class']] = ['CM', 'uptake of eubacteria', 'micro']
 
-        # remove Status column
-        lis = lis.drop(columns=["Status"])
+        # fill unknown volumes with averages from mdb_volume based on size class and convert
+        lis['Volume'] = lis['Volume'].fillna(lis.merge(self.mdb_volume, on='size class', how='left')['Volume_y']) 
+        lis['Total Biomass (pgC)'] = (((lis['Volume'])**0.939) * 0.216) * lis['Totals']
+        lis = lis.rename(columns={'Volume':'Volume (µm³/cell)'})
+
+        # move volume and biomass column near front
+        lis = pd.concat([lis.iloc[:, :9], lis.iloc[:, -2:], lis.iloc[:, 9:-2]], axis=1)
+
+        # remove Status, length, and width columns
+        lis = lis.drop(columns=["Status", 'L (μm)', 'W (μm) or diameter (μm)'])
 
         return lis
 
@@ -214,6 +238,7 @@ class Classifier:
         totals["MFT"] = ""
         totals["Evidence of mixoplankton activity"] = ""
         totals["size class"] = ""
+        totals['Volume (µm³/cell)'] = ""
 
         # rename to TOTAL "   "
         totals["Phylum"] = totals["Phylum"].str.upper().apply(lambda x: "TOTAL " + x + "S")
@@ -228,7 +253,7 @@ class Classifier:
         lis.columns = pd.MultiIndex.from_arrays([original_headers, lis.columns])
 
         # Isolate Station/Date columns
-        species_columns = lis.columns.get_level_values(1).isin(['Status', 'Phylum', 'Genus', 'Species', 'MFT', 'Evidence of mixoplankton activity', 'size class', 'Totals'])
+        species_columns = lis.columns.get_level_values(1).isin(['Status', 'Phylum', 'Genus', 'Species', 'MFT', 'Evidence of mixoplankton activity', 'size class', 'Totals', 'Volume (µm³/cell)', 'Total Biomass (pgC)'])
         removed_columns = lis.loc[:, species_columns].copy()
 
         lis = lis.loc[:, ~species_columns]
