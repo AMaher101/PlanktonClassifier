@@ -29,7 +29,7 @@ class Block:
         self.df = df
 
 
-class PlanktonClassifier:
+class Classifier:
     """
     Classifies LIS plankton as mixotrophs based on Mixoplankton Database.
 
