@@ -1,9 +1,9 @@
 # PlanktonClassifier
-Constructs database with accurately classified plankton and attributes using plankton abundance and taxonomic composition data.
+Constructs formatted dataframe with accurately classified plankton and attributes using plankton abundance and taxonomic composition data.
 
 ## Usage
 ### Preparing a dataset
-1. PlanktonClassifier accepts CSVs with multiheader columns formatted as below:
+PlanktonClassifier accepts CSVs with multiheader columns formatted as below:
 
 <table>
     <th></th>
@@ -47,8 +47,8 @@ The second header indicates Phylum and Species distinctions in the first two col
 
 The third header is necessary for indication of genus. In this column, an initial empty row is reserved for the Phylum name with following rows specifiying Genus name—the adjacent column in the same row will specify Species name.
 
-2. PlanktonClassifier requires a format of a skipped line between different phylums (ex. empty row above Diatom, Dinoflagellate, etc.)
-3. Example datasets are provided in the inputs folder for reference.
+PlanktonClassifier requires a format of a skipped line between different phylums (ex. empty row above Diatom, Dinoflagellate, etc.)
+Example datasets are provided in the inputs folder for reference.
 
 ### Classifying a plankton dataset
 1. Place your appropriately formatted CSV file in the _inputs_ folder.
