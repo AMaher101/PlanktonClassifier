@@ -69,17 +69,20 @@ class Classifier:
     5. check "cysts of"
 
     Status Key--  
-    Yes := explicitly in the Mixotroph Database  
+    Mixoplankton := explicitly in the Mixotroph Database  
     Unsure (sp. in mdb) := genus in Mixotroph Database lists "[genus name] sp." (ex. Ochromonas sp. for Ochromonas danica)  
     Unsure (inexact name):= LIS name is in a longer Mixotroph Database name or vice versa (ex. Chattonella marina in Chattonella marina var. ovata)   
-    No := not a mixotroph
+    Zooplankton := manually confirmed as Zooplankton species in "confirmed_zoo_genus_before" or "confirmed_zoo_species_before"
+    Phytoplankton := not in Mixoplankton Database or priorly confirmed as Zooplankton
     """
     
-    def __init__(self, csv_name, confirmed_genus_before=["Ochromonas"], confirmed_species_before=['Chattonella marina']):
+    def __init__(self, csv_name, confirmed_mixo_genus_before=["Ochromonas"], confirmed_mixo_species_before=['Chattonella marina'], confirmed_zoo_genus_before=["Protoperidinium"], confirmed_zoo_species_before=[]):
         self.csv_name = csv_name
         self.year = re.search(r'\b(\d{4})\b', self.csv_name).group(1) if re.search(r'\b(\d{4})\b', self.csv_name) else ""
-        self.confirmed_genus_before = confirmed_genus_before
-        self.confirmed_species_before = confirmed_species_before
+        self.confirmed_mixo_genus_before = confirmed_mixo_genus_before
+        self.confirmed_mixo_species_before = confirmed_mixo_species_before
+        self.confirmed_zoo_genus_before = confirmed_zoo_genus_before
+        self.confirmed_zoo_species_before = confirmed_zoo_species_before
 
         # import and clean mixoplankton database
         mdb = pd.read_csv(MDB_PATH)
@@ -149,34 +152,51 @@ class Classifier:
 
 
     def classify_lis(self, lis):
+
         # add Status column
         lis = lis.copy()
         lis.insert(0, 'Status', None)
 
-        # store blocks of known mixotroph genuses (given beforehand) 
-        known_blocks = []
-        for genus in self.confirmed_genus_before:
+        # store blocks of known mixotroph genuses and species (given beforehand) 
+        known_mixo_blocks = []
+        for genus in self.confirmed_mixo_genus_before:
             ind = lis[lis["Species"].str.contains(genus)].index
             df = lis.iloc[ind]
-            known_blocks.append(Block(ind, df))
-        for species in self.confirmed_species_before:
+            known_mixo_blocks.append(Block(ind, df))
+        for species in self.confirmed_mixo_species_before:
             ind = lis[lis["Species"].str.contains(species)].index
             df = lis.iloc[ind]
-            known_blocks.append(Block(ind, df))
+            known_mixo_blocks.append(Block(ind, df))
+
+        # store blocks of known zooplankton genuses and species (given beforehand)
+        known_zoo_blocks = []
+        for genus in self.confirmed_zoo_genus_before:
+            ind = lis[lis["Species"].str.contains(genus)].index
+            df = lis.iloc[ind]
+            known_zoo_blocks.append(Block(ind, df))
+        for species in self.confirmed_zoo_species_before:
+            ind = lis[lis["Species"].str.contains(species)].index
+            df = lis.iloc[ind]
+            known_zoo_blocks.append(Block(ind, df))
 
         # remove based on hard coded rules (NOT RESETTING INDEX IN ORDER TO ADD CONFIRMED_BEFORE GENUSES BACK CORRECTLY)
         lis = lis[~lis["Species"].str.contains("unknown|other|cysts")]
         lis = lis[~lis["Species"].str.contains("-like")] # remove species ending with "-like"
         lis = lis[~lis["Species"].str.contains("sp.|spp.")]  # remove all sp. / spp.
 
-        # add back stored blocks of known mixotrophs and mark as Yes
-        for known_block in known_blocks:
+        # add back stored blocks of known mixoplankton and mark as "Mixoplankton"
+        for known_block in known_mixo_blocks:
             lis = pd.concat([lis, known_block.df]).sort_index().drop_duplicates()
-            lis.loc[known_block.ind, "Status"] = "Yes"
+            lis.loc[known_block.ind, "Status"] = "Mixoplankton"
+
+        # add back stored blocks of known zooplankton and mark as "Zooplankton"
+        for known_block in known_zoo_blocks:
+            lis = pd.concat([lis, known_block.df]).sort_index().drop_duplicates()
+            lis.loc[known_block.ind, "Status"] = "Zooplankton"
 
         # check if (in none status) direct match and mark all Trues as "Yes"
         filtered = lis[lis['Status'].isnull()]["Species"].isin(self.mdb['Species Name'])
-        lis.loc[filtered[filtered].index, "Status"] = "Yes"
+        lis.loc[filtered[filtered].index, "Status"] = "Mixoplankton"
         
         # check (in remaining none status) if the genus has sp. and mark all Trues as "Unsure (sp. in mdb)"
         genus_to_check = lis[lis['Status'].isnull()]['Species'].str.split().str[0].drop_duplicates() + " sp."
@@ -192,14 +212,14 @@ class Classifier:
         lis.loc[filtered[filtered].index, "Status"] = "Unsure (inexact name)"
         
         # replace None's in Status with No's 
-        lis["Status"] = lis["Status"].replace(np.nan, 'No')
+        lis["Status"] = lis["Status"].replace(np.nan, 'Phytoplankton')
 
-        return lis.reset_index(drop=True)
+        return lis.reset_index(drop=True) 
     
 
     def only_mixotrophs(self, lis):
-        # drop all rows with Status = "No"
-        lis = lis[lis["Status"] != "No"].reset_index(drop=True)
+        # drop all rows with Status != "Mixoplankton"
+        lis = lis[lis["Status"] == "Mixoplankton"].reset_index(drop=True)
 
        # merge additional columns from mdb
         lis = pd.merge(lis, self.mdb[['Species Name', 'MFT', 'Evidence of mixoplankton activity', 'size class', 'L (μm)', 'W (μm) or diameter (μm)']], left_on='Species', right_on='Species Name', how='left').drop(columns=['Species Name']).reset_index(drop=True) 
