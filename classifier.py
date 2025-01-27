@@ -214,7 +214,7 @@ class Classifier:
         # replace None's in Status with No's 
         lis["Status"] = lis["Status"].replace(np.nan, 'Phytoplankton')
 
-        return lis.reset_index(drop=True) 
+        return lis.reset_index(drop=True)
     
 
     def only_mixotrophs(self, lis):
