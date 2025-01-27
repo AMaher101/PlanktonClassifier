@@ -54,3 +54,6 @@ The third header is necessary for indication of genus. In this column, an initia
 1. Place your appropriately formatted CSV file in the _inputs_ folder.
 2. In _run.ipynb_, ensure all inputs listed in _csvs_ are correct.
 3. Run _run.ipynb_.
+
+---
+For questions, contact Aiden Maher at aidenhmaher@gmail.com
