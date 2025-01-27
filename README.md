@@ -52,17 +52,27 @@ Example datasets are provided in the inputs folder for reference.
 
 ### Classifying a plankton dataset
 1. Place your appropriately formatted CSV file in the _inputs_ folder.
-2. In _run.ipynb_, ensure all inputs listed in _csvs_ are correct.
-3. Run _run.ipynb_.
+2. In _run.py_, ensure all inputs listed in _csvs_ are correct.
+3. Run _run.py_.
 
 Excel files of the classified databases are saved to `PlanktonClassifier/outputs`.
 
-#### Useful statements to call from Classifier
-- `all_classified`: Cleans dataset to specify genus, phylum, and totals for every species, classifies plankton based on trophic strategy, and removes multiheader for simpler analysis.
+#### Useful variables to call from Classifier
+- `all_classified`: Cleans dataset to specify genus, phylum, and total cell counts for every species, classifies plankton based on trophic strategy, and removes multiheader for simpler analysis.
 - `mixoplankton`: Provides dataset with only mixoplankton, specifying phylum, genus, species, functional type, size class, evidence of mixoplankton activity and calculating total cell count, volume ((µm³/cell), and total biomass (pgC) for every species. 
 - `mixoplankton_with_header`: Provides dataset with specifications as with 'mixoplankton' in addition to multiheader with stations and organization based on month.
 - `totals`: Provides total cell counts for each phylum throughout an entire calendar year as well as at each station at every date.
 - `pretty`: Provides dataset with specifications as with 'mixoplankton_with_header' in addition to total cell count and total biomass (pgC) for every phylum in a full calendar year and at each station on every date.
 
+## Analysis
+The folder labeled `Analysis` contains notebooks analyzing ecological communities of plankton as well as elements of their physicochemical environments throughout the Long Island Sound from 2014-2021. 
+
+### Findings
+Spikes in cell counts of phytoplankton and mixoplankton in areas near urban environments indicate a connection to the development of acute hypoxic "dead zones" found in parts of the Sound.
+
+When wastewater treatment plants surrounding urban environments such as New York City and New Haven release excess nitrogen into the Sound, they provide an abundant amount of a key nutrient for the growth of phyto and mixoplankton, leading to large algal blooms. The subsequent decomposition process by bacteria results in the consumption of dissolved oxygen faster than it can be replenished, creating hypoxic zones that significantly disrupt ecosystem balance. 
+
+This research emphasizes the urgency with which we must address these interconnected environmental challenges to protect the health and sustainability of the Long Island Sound's ecosystem. 
+
 ---
-For questions, contact Aiden Maher at aidenhmaher@gmail.com
+For questions, contact Aiden Maher at aidenhmaher@gmail.com 
