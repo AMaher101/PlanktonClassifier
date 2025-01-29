@@ -68,7 +68,7 @@ Excel files of the classified databases are saved to `PlanktonClassifier/outputs
 The folder labeled `Analysis` contains notebooks analyzing ecological communities of plankton as well as elements of their physicochemical environments throughout the Long Island Sound from 2014-2021. 
 
 ### Findings
-Spikes in cell counts of phytoplankton and mixoplankton in areas near urban environments indicate a connection to the development of acute hypoxic "dead zones" found in parts of the Sound.
+Elevated cell counts of phytoplankton and mixoplankton and drops in dissolved oxygen levels observed in waters near urban environments indicate a connection to the development of acute hypoxic "dead zones" found in parts of the Long Island Sound. 
 
 When wastewater treatment plants surrounding urban environments such as New York City and New Haven release excess nitrogen into the Sound, they provide an abundant amount of a key nutrient for the growth of phyto and mixoplankton, leading to large algal blooms. The subsequent decomposition process by bacteria results in the consumption of dissolved oxygen faster than it can be replenished, creating hypoxic zones that significantly disrupt ecosystem balance. 
 
