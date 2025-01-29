@@ -70,7 +70,7 @@ The folder labeled `Analysis` contains notebooks analyzing ecological communitie
 ### Findings
 Elevated cell counts of phytoplankton and mixoplankton and drops in dissolved oxygen levels observed in waters near urban environments indicate a connection to the development of acute hypoxic "dead zones" found in parts of the Long Island Sound. 
 
-When wastewater treatment plants surrounding urban environments such as New York City and New Haven release excess nitrogen into the Sound, they provide an abundant amount of a key nutrient for the growth of phyto and mixoplankton, leading to large algal blooms. The subsequent decomposition process by bacteria results in the consumption of dissolved oxygen faster than it can be replenished, creating hypoxic zones that significantly disrupt ecosystem balance. 
+These results suggest that the release of excess nitrogen from wastewater treatment plants surrounding urban cities, such as New York City and New Haven, are likely providing an abundant amount of a key nutrient conducive to such heightened growth and proliferation of phytoplankton and mixoplankton detected, resulting in large algal blooms. Thus, when bacteria subsequently begin the process of decomposition, they presumably consume inordinate amounts of dissolved oxygen faster than it can be replenished, creating the hypoxic zones that have significantly disrupted ecosystem balance.   
 
 This research emphasizes the urgency with which we must address these interconnected environmental challenges to protect the health and sustainability of the Long Island Sound's ecosystem. 
 
